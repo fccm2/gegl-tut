@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>gegl-tutorial</title>
+<meta name="generator for code chunks syntax highlightning" content="Vim/9.0">
+<style>
+pre { white-space:pre-wrap; font-family:monospace; color:#fff; background-color:#000; }
+body { font-family:monospace; color:#000; background-color:#fff; font-size:1em; }
+pre { width:72%; min-width:800px; }
+body { padding-left:0.8em; padding-bottom:1.8em; }
+p { width:68%; min-width:760px; }
+code { background-color:#eed; }
+td { border:1px solid #888; }
+img { border:1px solid #ccc; margin:6px; }
+hr { margin-right:26%; }
+
+.Type       { color:#00ff00; font-weight:bold; }
+.Module     { color:#8080ff; font-weight:bold; }
+.Constant   { color:#ff40ff; font-weight:bold; }
+.Statement  { color:#ffff00; font-weight:bold; }
+.Comment    { color:#00ffff; font-weight:bold; }
+.Error      { color:#ff0000; font-weight:bold; background-color:#ee6060; }
+.Alert      { color:#ff0000; font-weight:bold; }
+.PreProc    { color:#5fd7ff; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<h1>gegl-tutorial</h1>
+
+<p>Gegl processes operations following a directed acyclic graph,
+  where every node-operations have to be connected until a destination
+  node, which have to be processed with <code>gegl_node_process()</code>,
+  to produce the expected result, from the node-chain created with
+  <code>gegl_node_connect_to()</code>.</p>
+
+<p>Here is a minimal example:</p>
+
+<pre class='code-element'>
+<span class="PreProc">#include </span><span class="Constant">&lt;gegl.h&gt;</span>
+
+<span class="Type">int</span> main(<span class="Type">int</span> argc, <span class="Type">char</span> **argv) {
+  gegl_init(&amp;argc, &amp;argv);
+
+  GeglNode *graph = gegl_node_new();
+
+  GeglNode *load = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:png-load&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;input.png&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *save = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:png-save&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;output.png&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  gegl_node_connect_to(load, <span class="Constant">&quot;output&quot;</span>, save, <span class="Constant">&quot;input&quot;</span>);
+  gegl_node_process(save);
+
+  g_object_unref(graph);
+  gegl_exit();
+
+  <span class="Statement">return</span> <span class="Constant">0</span>;
+}
+</pre>
+
+<p>The <code>output</code> of the <code>load</code> node is connected with the <code>input</code>
+ of the <code>save</code> node.</p>
+
+<p>You can compile this small example with:</p>
+
+<pre class='code-element'>
+$ gcc -o png-io.exe png-io.c `pkg-config --cflags --libs gegl-0.4`
+$ ./png-io.exe
+$ ls
+ input.png
+ output.png
+</pre>
+
+<p>This small example will load the input image <code>input.png</code> and
+ create an equivalent output image <code>output.png</code>.</p>
+
+<hr />
+
+<p>Now here is how to apply a filter to the input image.</p>
+
+<p>The node-chain now has to be: load -&gt; blur -&gt; save / process(save)</p>
+
+<pre class='code-element'>
+<span class="PreProc">#include </span><span class="Constant">&lt;gegl.h&gt;</span>
+
+<span class="Type">int</span> main(<span class="Type">int</span> argc, <span class="Type">char</span> **argv) {
+  gegl_init(&amp;argc, &amp;argv);
+
+  GeglNode *graph = gegl_node_new();
+
+  GeglNode *load = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:png-load&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;input.png&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *blur = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:gaussian-blur&quot;</span>,
+    <span class="Constant">&quot;std-dev-x&quot;</span>, <span class="Constant">8.0</span>,
+    <span class="Constant">&quot;std-dev-y&quot;</span>, <span class="Constant">8.0</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *save = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:png-save&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;output.png&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  gegl_node_connect_to(load, <span class="Constant">&quot;output&quot;</span>, blur, <span class="Constant">&quot;input&quot;</span>);
+  gegl_node_connect_to(blur, <span class="Constant">&quot;output&quot;</span>, save, <span class="Constant">&quot;input&quot;</span>);
+
+  gegl_node_process(save);
+
+  g_object_unref(graph);
+  gegl_exit();
+
+  <span class="Statement">return</span> <span class="Constant">0</span>;
+}
+</pre>
+
+<hr />
+
+<p>Using several layers.</p>
+
+<p>The <code>compose</code> node has a second input connector called <code>"aux"</code>.</p>
+
+<p>The <code>"output"</code> connector of the <code>compose</code> node is connected
+ to the <code>"input"</code> connector of the <code>save</code> node.</p>
+
+<pre class='code-element'>
+<span class="PreProc">#include </span><span class="Constant">&lt;gegl.h&gt;</span>
+
+<span class="Type">int</span> main(<span class="Type">int</span> argc, <span class="Type">char</span> **argv) {
+  gegl_init(&amp;argc, &amp;argv);
+
+  GeglNode *graph = gegl_node_new();
+
+  GeglNode *layer1 = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:svg-load&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;layer1.svg&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *layer2 = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:svg-load&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;layer2.svg&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *compose = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:multiply&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  GeglNode *save = gegl_node_new_child(graph,
+    <span class="Constant">&quot;operation&quot;</span>, <span class="Constant">&quot;gegl:png-save&quot;</span>,
+    <span class="Constant">&quot;path&quot;</span>, <span class="Constant">&quot;output.png&quot;</span>,
+    <span class="Constant">NULL</span>);
+
+  gegl_node_connect_to(layer1, <span class="Constant">&quot;output&quot;</span>, compose, <span class="Constant">&quot;input&quot;</span>);
+  gegl_node_connect_to(layer2, <span class="Constant">&quot;output&quot;</span>, compose, <span class="Constant">&quot;aux&quot;</span>);
+
+  gegl_node_connect_to(compose, <span class="Constant">&quot;output&quot;</span>, save, <span class="Constant">&quot;input&quot;</span>);
+
+  gegl_node_process(save);
+
+  g_object_unref(graph);
+  gegl_exit();
+
+  <span class="Statement">return</span> <span class="Constant">0</span>;
+}
+
+</pre>
+
+<p>Here are the input images, with the result of the composition:</p>
+
+<table>
+<tr>
+<td>"layer1.svg"</td>
+<td>"layer2.svg"</td>
+<td>"output.png"</td>
+</tr>
+<tr>
+<td><img src="layer1.svg" /></td>
+<td><img src="layer2.svg" /></td>
+<td><img src="output3.png" /></td>
+</tr>
+</table>
+
+</body>
+</html>
